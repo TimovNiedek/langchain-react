@@ -13,9 +13,10 @@ load_dotenv()
 
 @tool
 def get_text_length(text: str) -> str:
-    """Returns the length of a text by charaters"""
+    """Returns the length of a text by characters"""
     text = text.strip().strip("'\n\"")  # Remove quotes and newlines
     return str(len(text))
+
 
 def find_tool_by_name(tools: List[Tool], name: str) -> Tool:
     for tool in tools:
@@ -29,7 +30,7 @@ if __name__ == "__main__":
 
     tools: List[Tool] = [get_text_length]
 
-    # Few-shot learning, chain of thoughts prompt
+    # ReAct prompt (a one-shot learning, chain of thoughts prompt)
     template = """
     Answer the following questions as best you can. You have access to the following tools:
 
@@ -65,7 +66,8 @@ if __name__ == "__main__":
     agent = {"input": lambda x: x["input"]} | prompt | llm | ReActSingleInputOutputParser()
 
     # Run the agent (reasoning engine)
-    agent_step: Union[AgentAction, AgentFinish] = agent.invoke({"input": "What is the length of the text 'Hello, World!' in characters?"})
+    agent_step: Union[AgentAction, AgentFinish] = agent.invoke(
+        {"input": "What is the length of the text 'Hello, World!' in characters?"})
 
     if isinstance(agent_step, AgentAction):
         tool_name = agent_step.tool
@@ -74,6 +76,3 @@ if __name__ == "__main__":
 
         observation = tool.func(str(tool_input))
         print(f"{observation=}")
-
-
-
