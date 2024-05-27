@@ -8,6 +8,7 @@ from langchain.prompts import PromptTemplate
 from langchain.tools.render import render_text_description
 from langchain_core.agents import AgentAction, AgentFinish
 from langchain_openai import ChatOpenAI
+from langchain_react.callbacks import LoggingAgentCallbackHandler
 
 load_dotenv()
 
@@ -61,7 +62,12 @@ if __name__ == "__main__":
 
     # OpenAI GPT-3.5-turbo model
     # stop argument is used to stop the model from generating more text after the final answer
-    llm = ChatOpenAI(temperature=0.0, model="gpt-3.5-turbo", model_kwargs={"stop": ["\nObservation", "Observation"]})
+    llm = ChatOpenAI(
+        temperature=0.0,
+        model="gpt-3.5-turbo",
+        model_kwargs={"stop": ["\nObservation", "Observation"]},
+        callbacks=[LoggingAgentCallbackHandler()]
+    )
 
     # Agent scratchpad to store intermediate steps
     # Formatted as list of (action, observation) tuples
@@ -74,29 +80,26 @@ if __name__ == "__main__":
     }
     agent = input_dict | prompt | llm | ReActSingleInputOutputParser()
 
-    # Run the agent (reasoning engine)
-    agent_step: Union[AgentAction, AgentFinish] = agent.invoke(
-        {
-            "input": "What is the length of the text 'Hello, World!' in characters?",
-            "agent_scratchpad": intermediate_steps
-        }
-    )
+    agent_step: AgentAction | AgentFinish | None = None
+    i = 0
 
-    if isinstance(agent_step, AgentAction):
-        tool_name = agent_step.tool
-        tool = find_tool_by_name(tools, tool_name)
-        tool_input = agent_step.tool_input
+    while not isinstance(agent_step, AgentFinish) or i > 10:
+        # Run the agent (reasoning engine)
+        agent_step: Union[AgentAction, AgentFinish] = agent.invoke(
+            {
+                "input": "What is the length of the text 'Hello, World!' in characters?",
+                "agent_scratchpad": intermediate_steps
+            }
+        )
 
-        observation = tool.func(str(tool_input))
-        print(f"{observation=}")
-        intermediate_steps.append((agent_step, str(observation)))
+        if isinstance(agent_step, AgentAction):
+            tool_name = agent_step.tool
+            tool = find_tool_by_name(tools, tool_name)
+            tool_input = agent_step.tool_input
 
-    # Execute it again
-    agent_step: Union[AgentAction, AgentFinish] = agent.invoke(
-        {
-            "input": "What is the length of the text 'Hello, World!' in characters?",
-            "agent_scratchpad": intermediate_steps
-        }
-    )
-    if isinstance(agent_step, AgentFinish):
-        print(agent_step.return_values)
+            observation = tool.func(str(tool_input))
+            intermediate_steps.append((agent_step, str(observation)))
+
+        i += 1
+
+    print(agent_step.return_values)
